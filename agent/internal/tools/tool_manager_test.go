@@ -153,3 +153,19 @@ func TestToolManager_AcceptsNumericStringPID(t *testing.T) {
 		t.Fatalf("GetNetworkConnections PID = %d, want 1", connections.PID)
 	}
 }
+
+func TestToolManagerAgentSkillScanValidatesPagingArguments(t *testing.T) {
+	m := NewToolManager()
+	if _, err := m.Execute("AgentSkillScan", map[string]interface{}{}); err == nil {
+		t.Fatal("expected missing skill host id")
+	}
+	if _, err := m.Execute("AgentSkillScan", map[string]interface{}{"host_id": "host-1", "path": "/etc"}); err == nil {
+		t.Fatal("expected arbitrary path to be rejected")
+	}
+	if _, err := m.Execute("AgentSkillScan", map[string]interface{}{"host_id": "host-1", "limit": 0}); err == nil {
+		t.Fatal("expected invalid skill page limit")
+	}
+	if _, err := m.Execute("AgentSkillScan", map[string]interface{}{"host_id": "host-1", "offset": -1}); err == nil {
+		t.Fatal("expected invalid skill page offset")
+	}
+}

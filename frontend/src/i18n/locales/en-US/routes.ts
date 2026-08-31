@@ -34,6 +34,7 @@ export default {
   agentGuardEvents: 'Agent Event Visibility & Protection',
   agentGuardEscape: 'Agent Escape Protection',
   agentGuardConfigurations: 'Agent Configuration Detection',
+  agentSkillSecurity: 'Agent Skill Security',
   agentSessionAwareness: 'Agent Session Awareness',
   weakPassword: 'Intelligent Weak Password Detection',
   weakPasswordTaskDetail: 'Weak Password Task Details',

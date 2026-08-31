@@ -152,6 +152,7 @@ func main() {
 	agentGuardActionRepo := repository.NewAgentGuardActionRepository(db)
 	agentGuardToolFindingRepo := repository.NewAgentGuardToolFindingRepository(db)
 	agentSessionRepo := repository.NewAgentSessionRepository(db)
+	agentSkillSnapshotStore := service.NewAgentSkillScanSnapshotStore(db)
 	mcpPlatformRepo := repository.NewMCPPlatformRepository(db)
 
 	if err := agentGuardCatalogRepo.VerifyBuiltinManifest(context.Background()); err != nil {
@@ -437,6 +438,7 @@ func main() {
 	agentSessionService := service.NewAgentSessionService(agentSessionRepo, agentSessionAI, logger.Get().Named("agent_session"))
 	agentSessionService.SetCollectionDispatcher(serverClient)
 	agentConfigSecurityService := service.NewAgentConfigSecurityService(serverClient, logger.Get().Named("agent_config_security"))
+	agentSkillSecurityService := service.NewAgentSkillSecurityService(serverClient, logger.Get().Named("agent_skill_security"), agentSkillSnapshotStore)
 	agentSessionHandler := handler.NewAgentSessionHandler(agentSessionService, logger.Get().Named("agent_session_handler"))
 	mcpPlatformService := service.NewMCPPlatformService(mcpPlatformRepo, logger.Get())
 	mcpPlatformService.SetCatalogSigningKey(cfg.MCPPlatform.CatalogSigningKey)
@@ -468,6 +470,8 @@ func main() {
 	agentGuardHandler.SetBundleService(agentGuardBundleService)
 	agentGuardHandler.SetRuntimeSettingsService(agentGuardRuntimeSettingsService, agentGuardRuntimeSettingsService)
 	agentGuardHandler.SetConfigScanner(agentConfigSecurityService)
+	agentGuardHandler.SetSkillScanner(agentSkillSecurityService)
+	agentGuardHandler.SetSkillInventoryReader(agentSkillSnapshotStore)
 	agentGuardHandler.SetAnalysisService(agentGuardAnalysisService)
 	agentGuardHandler.SetActionService(agentGuardActionService)
 	logger.Info("Weak password detection module initialized")

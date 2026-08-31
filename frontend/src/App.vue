@@ -139,6 +139,10 @@
             <el-icon><Setting /></el-icon>
             <span>{{ t('app.menu.agentGuardConfigurations') }}</span>
           </el-menu-item>
+          <el-menu-item index="/detection/agent-skill-security">
+            <el-icon><DocumentChecked /></el-icon>
+            <span>{{ t('app.menu.agentSkillSecurity') }}</span>
+          </el-menu-item>
           <el-menu-item index="/detection/agent-guard/session-awareness">
             <el-icon><ChatDotRound /></el-icon>
             <span>{{ t('app.menu.agentSessionAwareness') }}</span>
@@ -246,7 +250,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { Monitor, Document, SetUp, List, Warning, Setting, Refresh, DataAnalysis, Bell, Operation, Tickets, ChatDotRound, Box, Connection, DataBoard, Files, Grid, MagicStick, Lock, Fold, Expand } from '@element-plus/icons-vue'
+import { Monitor, Document, DocumentChecked, SetUp, List, Warning, Setting, Refresh, DataAnalysis, Bell, Operation, Tickets, ChatDotRound, Box, Connection, DataBoard, Files, Grid, MagicStick, Lock, Fold, Expand } from '@element-plus/icons-vue'
 import NotificationBell from '@/components/notification/NotificationBell.vue'
 import UserProfileDropdown from '@/components/UserProfileDropdown.vue'
 import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'

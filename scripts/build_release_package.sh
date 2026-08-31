@@ -16,6 +16,8 @@ LOCAL_API_SERVER_IMAGE="${LOCAL_API_SERVER_IMAGE:-aegis-api-server:latest}"
 LOCAL_SERVER_IMAGE="${LOCAL_SERVER_IMAGE:-aegis-server:latest}"
 LOCAL_DC_IMAGE="${LOCAL_DC_IMAGE:-aegis-dc:latest}"
 LOCAL_FRONTEND_IMAGE="${LOCAL_FRONTEND_IMAGE:-aegis-frontend:latest}"
+LOCAL_MCP_GATEWAY_IMAGE="${LOCAL_MCP_GATEWAY_IMAGE:-aegis-mcp-gateway:latest}"
+MCP_GATEWAY_SERVICE_IMAGE="${MCP_GATEWAY_SERVICE_IMAGE:-aegis-system/mcp-gateway:latest}"
 COMBINED_IMAGE_ARCHIVE="${COMBINED_IMAGE_ARCHIVE:-0}"
 
 info() {
@@ -212,22 +214,23 @@ write_init_sql() {
 }
 
 copy_release_migration() {
-  local source_migration="${ROOT_DIR}/migrations/029_v6.2_agent_guard.sql"
-  local release_migration="${RELEASE_DIR}/backend/migrations/029_v6.2_agent_guard.sql"
-  local source_profile_migration="${ROOT_DIR}/migrations/030_v6.2_zcode_agent_guard_profile.sql"
-  local release_profile_migration="${RELEASE_DIR}/backend/migrations/030_v6.2_zcode_agent_guard_profile.sql"
-  local source_escape_migration="${ROOT_DIR}/migrations/031_v6.2_agent_escape_permission_first.sql"
-  local release_escape_migration="${RELEASE_DIR}/backend/migrations/031_v6.2_agent_escape_permission_first.sql"
+  local migration
 
-  test -s "${source_migration}" || die "missing required V6.2 migration: ${source_migration}"
-  cp "${source_migration}" "${release_migration}"
-  chmod 0644 "${release_migration}"
-  test -s "${source_profile_migration}" || die "missing required profile migration: ${source_profile_migration}"
-  cp "${source_profile_migration}" "${release_profile_migration}"
-  chmod 0644 "${release_profile_migration}"
-  test -s "${source_escape_migration}" || die "missing required V6.2 escape migration: ${source_escape_migration}"
-  cp "${source_escape_migration}" "${release_escape_migration}"
-  chmod 0644 "${release_escape_migration}"
+  for migration in \
+    029_v6.2_agent_guard.sql \
+    030_v6.2_zcode_agent_guard_profile.sql \
+    031_v6.2_agent_escape_permission_first.sql \
+    032_v6.3_agent_session_awareness.sql \
+    033_v6.3_mcp_platform_control_plane.sql \
+    034_v6.3_mcp_platform_audit_analysis.sql \
+    035_v6.3_mcp_client_endpoints.sql \
+    036_v6.3_mcp_security_rules.sql \
+    037_v6.4_agent_skill_security.sql \
+    038_v6.4_agent_skill_scan_snapshots.sql; do
+    test -s "${ROOT_DIR}/migrations/${migration}" || die "missing required release migration: ${ROOT_DIR}/migrations/${migration}"
+    cp "${ROOT_DIR}/migrations/${migration}" "${RELEASE_DIR}/backend/migrations/${migration}"
+    chmod 0644 "${RELEASE_DIR}/backend/migrations/${migration}"
+  done
 }
 
 write_release_compose() {
@@ -292,6 +295,13 @@ services:
       - ./backend/migrations/029_v6.2_agent_guard.sql:/migrations/029_v6.2_agent_guard.sql:ro
       - ./backend/migrations/030_v6.2_zcode_agent_guard_profile.sql:/migrations/030_v6.2_zcode_agent_guard_profile.sql:ro
       - ./backend/migrations/031_v6.2_agent_escape_permission_first.sql:/migrations/031_v6.2_agent_escape_permission_first.sql:ro
+      - ./backend/migrations/032_v6.3_agent_session_awareness.sql:/migrations/032_v6.3_agent_session_awareness.sql:ro
+      - ./backend/migrations/033_v6.3_mcp_platform_control_plane.sql:/migrations/033_v6.3_mcp_platform_control_plane.sql:ro
+      - ./backend/migrations/034_v6.3_mcp_platform_audit_analysis.sql:/migrations/034_v6.3_mcp_platform_audit_analysis.sql:ro
+      - ./backend/migrations/035_v6.3_mcp_client_endpoints.sql:/migrations/035_v6.3_mcp_client_endpoints.sql:ro
+      - ./backend/migrations/036_v6.3_mcp_security_rules.sql:/migrations/036_v6.3_mcp_security_rules.sql:ro
+      - ./backend/migrations/037_v6.4_agent_skill_security.sql:/migrations/037_v6.4_agent_skill_security.sql:ro
+      - ./backend/migrations/038_v6.4_agent_skill_scan_snapshots.sql:/migrations/038_v6.4_agent_skill_scan_snapshots.sql:ro
     command:
       - "psql"
       - "-v"
@@ -308,6 +318,20 @@ services:
       - "/migrations/030_v6.2_zcode_agent_guard_profile.sql"
       - "-f"
       - "/migrations/031_v6.2_agent_escape_permission_first.sql"
+      - "-f"
+      - "/migrations/032_v6.3_agent_session_awareness.sql"
+      - "-f"
+      - "/migrations/033_v6.3_mcp_platform_control_plane.sql"
+      - "-f"
+      - "/migrations/034_v6.3_mcp_platform_audit_analysis.sql"
+      - "-f"
+      - "/migrations/035_v6.3_mcp_client_endpoints.sql"
+      - "-f"
+      - "/migrations/036_v6.3_mcp_security_rules.sql"
+      - "-f"
+      - "/migrations/037_v6.4_agent_skill_security.sql"
+      - "-f"
+      - "/migrations/038_v6.4_agent_skill_scan_snapshots.sql"
     networks:
       - aegis-network
 
@@ -542,6 +566,16 @@ services:
       AGENT_GUARD_ACTION_ENABLED: ${AGENT_GUARD_ACTION_ENABLED:-false}
       AGENT_GUARD_TOOL_ADAPTER_ENABLED: ${AGENT_GUARD_TOOL_ADAPTER_ENABLED:-false}
       AGENT_GUARD_SCOPE_SIGNING_KEY: ${AGENT_GUARD_SCOPE_SIGNING_KEY:-}
+      MCP_GATEWAY_BASE_URL: ${MCP_GATEWAY_BASE_URL:-http://mcp-gateway:8084}
+      MCP_GATEWAY_PUBLIC_BASE_URL: ${MCP_GATEWAY_PUBLIC_BASE_URL:-http://localhost:8084}
+      MCP_GATEWAY_RUNTIME_BASE_URL: ${MCP_GATEWAY_RUNTIME_BASE_URL:-http://api-server:8082}
+      MCP_GATEWAY_RUNTIME_SECRET: ${MCP_GATEWAY_RUNTIME_SECRET:-change-me-mcp-gateway-runtime}
+      MCP_GATEWAY_SNAPSHOT_FILE: ${MCP_GATEWAY_SNAPSHOT_FILE:-}
+      MCP_GATEWAY_SIGNING_KEY: ${MCP_GATEWAY_SIGNING_KEY:-}
+      MCP_CATALOG_SIGNING_KEY: ${MCP_CATALOG_SIGNING_KEY:-}
+      MCP_ASSISTANT_ENABLED: ${MCP_ASSISTANT_ENABLED:-false}
+      MCP_ASSISTANT_CLIENT_KEY: ${MCP_ASSISTANT_CLIENT_KEY:-}
+      MCP_ASSISTANT_CLIENT_TOKEN: ${MCP_ASSISTANT_CLIENT_TOKEN:-}
     ports:
       - "8082:8082"
       - "19093:19093"
@@ -553,6 +587,30 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+
+  mcp-gateway:
+    image: aegis-system/mcp-gateway:latest
+    container_name: aegis-mcp-gateway
+    restart: unless-stopped
+    depends_on:
+      api-server:
+        condition: service_healthy
+    environment:
+      MCP_GATEWAY_PORT: 8084
+      MCP_GATEWAY_SNAPSHOT_FILE: ${MCP_GATEWAY_SNAPSHOT_FILE:-}
+      MCP_GATEWAY_SIGNING_KEY: ${MCP_GATEWAY_SIGNING_KEY:-}
+      MCP_GATEWAY_RUNTIME_BASE_URL: ${MCP_GATEWAY_RUNTIME_BASE_URL:-http://api-server:8082}
+      MCP_GATEWAY_RUNTIME_SECRET: ${MCP_GATEWAY_RUNTIME_SECRET:-change-me-mcp-gateway-runtime}
+    ports:
+      - "8084:8084"
+    networks:
+      - aegis-network
+    healthcheck:
+      test: ["CMD", "/mcp-gateway", "--healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   dc:
     image: aegis-system/dc:latest
@@ -909,6 +967,9 @@ chmod +x ./start.sh
 agent hub read this value through \`SERVER_EXTERNAL_IP\`, so generated Agent
 install commands point back to this host instead of an internal container IP.
 
+All Docker images are stored in the single \`images/aegis-images.tar.gz\` archive
+to preserve shared layers and reduce the overall release size.
+
 The first startup can take several minutes while Kafka and the agent hub pass
 their health checks. \`start.sh\` waits up to five minutes for the API by default.
 Override that limit only when needed:
@@ -984,6 +1045,7 @@ prepare_local_images() {
   reuse_local_image "${LOCAL_SERVER_IMAGE}" aegis-system/server:latest
   reuse_local_image "${LOCAL_DC_IMAGE}" aegis-system/dc:latest
   reuse_local_image "${LOCAL_FRONTEND_IMAGE}" aegis-system/frontend:latest
+  reuse_local_image "${LOCAL_MCP_GATEWAY_IMAGE}" "${MCP_GATEWAY_SERVICE_IMAGE}"
 
   for image in \
     "${AGENT_ARTIFACT_IMAGE}" \
@@ -1008,6 +1070,7 @@ build_images() {
   docker build --platform "${DOCKER_PLATFORM}" -f "${ROOT_DIR}/server/Dockerfile" -t aegis-system/server:latest "${ROOT_DIR}/server"
   docker build --platform "${DOCKER_PLATFORM}" -f "${ROOT_DIR}/dc/Dockerfile" -t aegis-system/dc:latest "${ROOT_DIR}/dc"
   docker build --platform "${DOCKER_PLATFORM}" -f "${ROOT_DIR}/frontend/Dockerfile" -t aegis-system/frontend:latest "${ROOT_DIR}/frontend"
+  docker build --platform "${DOCKER_PLATFORM}" -f "${ROOT_DIR}/mcp-gateway/Dockerfile" -t "${MCP_GATEWAY_SERVICE_IMAGE}" "${ROOT_DIR}/mcp-gateway"
   build_builder_service_image
 
   info "pulling base images"
@@ -1040,6 +1103,7 @@ save_combined_image_archive() {
     aegis-system/server:latest \
     aegis-system/dc:latest \
     aegis-system/frontend:latest \
+    "${MCP_GATEWAY_SERVICE_IMAGE}" \
     "${BUILDER_SERVICE_IMAGE}" \
     "${EBPF_BUILDER_IMAGE}" \
     aegis-system/minio-with-agent:latest \
@@ -1056,6 +1120,7 @@ aegis-system/api-server:latest
 aegis-system/server:latest
 aegis-system/dc:latest
 aegis-system/frontend:latest
+${MCP_GATEWAY_SERVICE_IMAGE}
 ${BUILDER_SERVICE_IMAGE}
 ${EBPF_BUILDER_IMAGE}
 aegis-system/minio-with-agent:latest
@@ -1078,6 +1143,7 @@ export_images() {
   save_image aegis-system/server:latest server.tar.gz
   save_image aegis-system/dc:latest dc.tar.gz
   save_image aegis-system/frontend:latest frontend.tar.gz
+  save_image "${MCP_GATEWAY_SERVICE_IMAGE}" mcp-gateway.tar.gz
   save_image "${BUILDER_SERVICE_IMAGE}" builder.tar.gz
   save_image "${EBPF_BUILDER_IMAGE}" ebpf-builder-base.tar.gz
   save_image aegis-system/minio-with-agent:latest minio-with-agent.tar.gz

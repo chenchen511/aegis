@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	hostasset "aegis-agent/internal/asset"
@@ -191,6 +192,34 @@ func (m *ToolManager) Execute(tool string, params map[string]interface{}) (inter
 		hostID, _ := params["host_id"].(string)
 		collector := assets.NewAgentConfigCollector(m.logger)
 		return collector.Collect(context.Background(), hostID), nil
+	case "AgentSkillScan":
+		for key := range params {
+			if key != "host_id" && key != "offset" && key != "limit" {
+				return nil, fmt.Errorf("unsupported AgentSkillScan parameter: %s", key)
+			}
+		}
+		hostID, _ := params["host_id"].(string)
+		if strings.TrimSpace(hostID) == "" {
+			return nil, fmt.Errorf("host_id is required")
+		}
+		offset := 0
+		if value, ok := params["offset"]; ok {
+			parsed, err := toInt(value)
+			if err != nil || parsed < 0 {
+				return nil, fmt.Errorf("offset must be a non-negative integer")
+			}
+			offset = parsed
+		}
+		limit := 16
+		if value, ok := params["limit"]; ok {
+			parsed, err := toInt(value)
+			if err != nil || parsed < 1 || parsed > 32 {
+				return nil, fmt.Errorf("limit must be between 1 and 32")
+			}
+			limit = parsed
+		}
+		collector := assets.NewAgentSkillCollector(m.logger)
+		return collector.Collect(context.Background(), hostID, offset, limit), nil
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", tool)
 	}

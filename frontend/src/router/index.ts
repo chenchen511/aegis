@@ -247,6 +247,12 @@ const routes = [
     meta: { titleKey: 'routes.agentGuardConfigurations', permission: 'agent_guard:read' }
   },
   {
+    path: '/detection/agent-skill-security',
+    name: 'AgentSkillSecurity',
+    component: () => import('../views/detection/AgentGuard/AgentSkillSecurity.vue'),
+    meta: { titleKey: 'routes.agentSkillSecurity', permission: 'agent_guard:read' }
+  },
+  {
     path: '/detection/agent-sessions',
     redirect: '/detection/agent-guard/session-awareness'
   },

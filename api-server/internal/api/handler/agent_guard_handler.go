@@ -89,6 +89,14 @@ type agentConfigSecurityScanner interface {
 	Scan(context.Context, string) (*service.AgentConfigScanResult, error)
 }
 
+type agentSkillSecurityScanner interface {
+	Scan(context.Context, string) (*service.AgentSkillScanResult, error)
+}
+
+type agentSkillInventoryReader interface {
+	ListInventory(context.Context, service.AgentSkillInventoryQuery) (*service.AgentSkillInventoryPage, error)
+}
+
 type agentGuardFindingDetail struct {
 	model.AgentSecurityFinding
 	EvidenceCompleteness map[string]any                 `json:"evidence_completeness"`
@@ -138,6 +146,8 @@ type AgentGuardHandler struct {
 	runtimeSettingsReader agentGuardRuntimeSettingsReader
 	runtimeSettingsWriter agentGuardRuntimeSettingsWriter
 	configScanner         agentConfigSecurityScanner
+	skillScanner          agentSkillSecurityScanner
+	skillInventoryReader  agentSkillInventoryReader
 	scopeSigner           *service.AgentGuardScopeSigner
 	logger                *zap.Logger
 }
@@ -184,6 +194,14 @@ func (h *AgentGuardHandler) SetConfigScanner(scanner agentConfigSecurityScanner)
 	h.configScanner = scanner
 }
 
+func (h *AgentGuardHandler) SetSkillScanner(scanner agentSkillSecurityScanner) {
+	h.skillScanner = scanner
+}
+
+func (h *AgentGuardHandler) SetSkillInventoryReader(reader agentSkillInventoryReader) {
+	h.skillInventoryReader = reader
+}
+
 // RegisterRoutes keeps the permission boundary visible next to every route.
 // The caller supplies the existing role middleware so tests can assert that
 // policy publish cannot inherit the less privileged draft-write permission.
@@ -213,6 +231,11 @@ func (h *AgentGuardHandler) RegisterRoutes(
 	guard.GET("/agents", read, h.ListAgents)
 	if h.configScanner != nil {
 		guard.GET("/configurations", read, h.ListConfigurations)
+	}
+	if h.skillScanner != nil {
+		guard.GET("/skills", read, h.ListSkills)
+		guard.GET("/skills/inventory", read, h.ListSkillInventory)
+		guard.GET("/skill-rules", read, h.ListSkillRules)
 	}
 	guard.GET("/configuration-rules", read, h.ListConfigurationRules)
 
@@ -276,6 +299,83 @@ func (h *AgentGuardHandler) ListConfigurations(c *gin.Context) {
 		return
 	}
 	agentGuardSuccess(c, result)
+}
+
+// ListSkills performs the V6.4 read-only Skill extraction and static prompt
+// security scan. The response contains full original content by design; the
+// route remains behind the Agent Guard read permission and never logs it.
+func (h *AgentGuardHandler) ListSkills(c *gin.Context) {
+	if h.skillScanner == nil {
+		agentGuardError(c, http.StatusServiceUnavailable, "agent_skill_scanner_unavailable", "Agent Skill scanner is unavailable", nil)
+		return
+	}
+	hostID := strings.TrimSpace(c.Query("host_id"))
+	if hostID == "" {
+		agentGuardError(c, http.StatusBadRequest, "agent_skill_host_required", "host_id is required", nil)
+		return
+	}
+	result, err := h.skillScanner.Scan(c.Request.Context(), hostID)
+	if err != nil {
+		h.logger.Warn("agent_skill_security_scan_failed", zap.String("host_id", hostID), zap.Error(err))
+		agentGuardError(c, http.StatusBadGateway, "agent_skill_scan_failed", "Agent Skill scan failed", nil)
+		return
+	}
+	agentGuardSuccess(c, result)
+}
+
+// ListSkillInventory reads the latest durable scan snapshot(s). Unlike
+// ListSkills, this endpoint never talks to an Agent and is therefore safe to
+// call during page initialization or browser refresh. Pagination is applied
+// by the repository before the response is returned.
+func (h *AgentGuardHandler) ListSkillInventory(c *gin.Context) {
+	if h.skillInventoryReader == nil {
+		agentGuardError(c, http.StatusServiceUnavailable, "agent_skill_inventory_unavailable", "Agent Skill inventory is unavailable", nil)
+		return
+	}
+	hostIDs := agentGuardQueryValues(c, "host_id")
+	hostIDs = append(hostIDs, agentGuardQueryValues(c, "host_ids")...)
+	hostIDs = uniqueStrings(hostIDs)
+	if !agentGuardValidateUUIDs(c, "host_id", hostIDs) {
+		return
+	}
+	page, pageSize, ok := agentGuardPageParamsFromContext(c)
+	if !ok {
+		return
+	}
+	result, err := h.skillInventoryReader.ListInventory(c.Request.Context(), service.AgentSkillInventoryQuery{
+		HostIDs: hostIDs, Page: page, PageSize: pageSize,
+	})
+	if err != nil {
+		h.logger.Warn("agent_skill_inventory_list_failed", zap.Error(err))
+		agentGuardError(c, http.StatusInternalServerError, "agent_skill_inventory_failed", "Agent Skill inventory could not be loaded", nil)
+		return
+	}
+	agentGuardSuccess(c, result)
+}
+
+func (h *AgentGuardHandler) ListSkillRules(c *gin.Context) {
+	rules := service.BuiltinAgentSkillRules()
+	keyword := strings.ToLower(strings.TrimSpace(c.Query("keyword")))
+	filtered := make([]service.AgentSkillRuleDefinition, 0, len(rules))
+	for _, rule := range rules {
+		if keyword != "" && !strings.Contains(strings.ToLower(rule.RuleKey+" "+rule.Name+" "+rule.Description), keyword) {
+			continue
+		}
+		filtered = append(filtered, rule)
+	}
+	page, pageSize, valid := agentGuardPageParamsFromContext(c)
+	if !valid {
+		return
+	}
+	start := (page - 1) * pageSize
+	if start > len(filtered) {
+		start = len(filtered)
+	}
+	end := start + pageSize
+	if end > len(filtered) {
+		end = len(filtered)
+	}
+	agentGuardSuccess(c, gin.H{"items": filtered[start:end], "total": len(filtered)})
 }
 
 func (h *AgentGuardHandler) ListConfigurationRules(c *gin.Context) {

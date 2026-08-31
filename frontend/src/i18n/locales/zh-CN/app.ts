@@ -47,6 +47,7 @@ export default {
     agentGuardEvents: '智能体事件感知与防护',
     agentGuardEscape: '智能体逃逸防护',
     agentGuardConfigurations: '智能体配置检测',
+    agentSkillSecurity: '智能体 Skill 安全',
     agentSessionAwareness: '智能体会话感知',
     weakPassword: '智能弱密码检测',
     settings: '系统配置',

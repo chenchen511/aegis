@@ -64,8 +64,8 @@ services:
       retries: 5
       start_period: 30s
 
-  # V6.2/V6.3 Agent Guard and session schema upgrade. This service intentionally runs only the
-  # idempotent V6.2 migration and never replays historical migrations.
+  # V6.2/V6.3/V6.4 Agent Guard, session, MCP and Skill schema upgrades. This
+  # service intentionally runs only the idempotent post-baseline migrations.
   db-migrate:
     image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/pgvector/pgvector:pg16
     restart: "no"
@@ -83,6 +83,8 @@ services:
       - ./migrations/034_v6.3_mcp_platform_audit_analysis.sql:/migrations/034_v6.3_mcp_platform_audit_analysis.sql:ro
       - ./migrations/035_v6.3_mcp_client_endpoints.sql:/migrations/035_v6.3_mcp_client_endpoints.sql:ro
       - ./migrations/036_v6.3_mcp_security_rules.sql:/migrations/036_v6.3_mcp_security_rules.sql:ro
+      - ./migrations/037_v6.4_agent_skill_security.sql:/migrations/037_v6.4_agent_skill_security.sql:ro
+      - ./migrations/038_v6.4_agent_skill_scan_snapshots.sql:/migrations/038_v6.4_agent_skill_scan_snapshots.sql:ro
     command:
       - "psql"
       - "-v"
@@ -109,6 +111,10 @@ services:
       - "/migrations/035_v6.3_mcp_client_endpoints.sql"
       - "-f"
       - "/migrations/036_v6.3_mcp_security_rules.sql"
+      - "-f"
+      - "/migrations/037_v6.4_agent_skill_security.sql"
+      - "-f"
+      - "/migrations/038_v6.4_agent_skill_scan_snapshots.sql"
     networks:
       - aegis-network
 
